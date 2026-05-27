@@ -27,7 +27,7 @@ GATEWAY_BASE_URL = os.environ.get("GATEWAY_BASE_URL", "http://localhost")
 AUTH_REGISTER_URL = f"{GATEWAY_BASE_URL}/api/auth/register"
 AUTH_LOGIN_URL = f"{GATEWAY_BASE_URL}/api/auth/login"
 
-UPLOAD_URL = f"{GATEWAY_BASE_URL}/api/upload/upload"
+UPLOAD_URL = f"{GATEWAY_BASE_URL}/api/upload/"
 
 
 def _print_stage(title: str) -> None:
