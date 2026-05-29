@@ -1,0 +1,4 @@
+boto3
+redis
+sqlalchemy
+psycopg2-binary

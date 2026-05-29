@@ -56,7 +56,8 @@ services:
     entrypoint: >
       /bin/sh -c "
       mc alias set myminio http://minio:9000 minioadmin minioadmin && 
-      (mc mb myminio/videos || true)
+      (mc mb myminio/raw-videos || true) &&
+      (mc mb myminio/processed-videos || true)
       "
     restart: "no"
 
@@ -67,17 +68,20 @@ services:
       - auth
       - upload
       - catalog
- #     - transcoder
     restart: always
     ports:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - youtube-clone-net
 
   auth:
     build: ../services/auth
     container_name: auth
     restart: always
+    ports:
+      - "8001:8001"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -107,7 +111,8 @@ services:
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
-      AUTH_SERVICE_URL: http://auth:8000
+      AUTH_SERVICE_URL: http://auth:8001
+      SECRET_KEY: "my_very_secret_key_123"
     depends_on:
       - postgres
       - redis
@@ -117,15 +122,18 @@ services:
       - youtube-clone-net
 
   transcoder:
-    build: ../services/transcoder
+    build: ../services/transcoder  # Change to ../ if your compose file is inside a subfolder
     container_name: transcoder
     restart: always
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/catalog
-      REDIS_URL: redis://redis:6379/0
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
+      - DB_URL=postgresql://postgres:postgres@postgres:5432/catalog
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/catalog # Kept both for safety
+      - REDIS_URL=redis://redis:6379/0
+      - TRANSCODE_QUEUE=video_transcode_queue
+      - MINIO_ENDPOINT=http://minio:9000  # Added http:// for boto3 compatibility
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - SECRET_KEY=my_very_secret_key_123
     depends_on:
       - postgres
       - redis
@@ -137,6 +145,8 @@ services:
     build: ../services/catalog
     container_name: catalog
     restart: always
+    ports:
+      - "8003:8001"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -144,13 +154,14 @@ services:
       DB_USER: postgres
       DB_PASSWORD: postgres
       REDIS_URL: redis://redis:6379/0
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
     depends_on:
       - postgres
       - redis
-      - minio
+    networks:
+      youtube-clone-net:
+        aliases:
+          - catalog   # <--- Forces Docker DNS to map this name explicitly
+
 
 volumes:
   postgres_data:
